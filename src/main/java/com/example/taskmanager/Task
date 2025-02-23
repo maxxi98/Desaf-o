@@ -1,0 +1,109 @@
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import javax.persistence.*;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Entity
+@Table(name = "tasks")
+class Task {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotBlank
+    @Size(max = 100)
+    @Column(nullable = false)
+    private String title;
+
+    @Column
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TaskStatus status;
+
+    @Column(updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column
+    private LocalDateTime updatedAt = LocalDateTime.now();
+}
+
+enum TaskStatus {
+    PENDIENTE, EN_PROGRESO, COMPLETADA
+}
+
+interface TaskRepository extends JpaRepository<Task, Long> {
+    List<Task> findByStatus(TaskStatus status);
+}
+
+@Service
+class TaskService {
+    @Autowired
+    private TaskRepository taskRepository;
+
+    public List<Task> getAllTasks(Optional<TaskStatus> status) {
+        return status.map(taskRepository::findByStatus).orElse(taskRepository.findAll());
+    }
+
+    public Optional<Task> getTaskById(Long id) {
+        return taskRepository.findById(id);
+    }
+
+    public Task createTask(Task task) {
+        return taskRepository.save(task);
+    }
+
+    public Task updateTask(Long id, Task taskDetails) {
+        return taskRepository.findById(id).map(task -> {
+            task.setTitle(taskDetails.getTitle());
+            task.setDescription(taskDetails.getDescription());
+            task.setStatus(taskDetails.getStatus());
+            task.setUpdatedAt(LocalDateTime.now());
+            return taskRepository.save(task);
+        }).orElseThrow(() -> new RuntimeException("Task not found"));
+    }
+
+    public void deleteTask(Long id) {
+        taskRepository.deleteById(id);
+    }
+}
+
+@RestController
+@RequestMapping("/tasks")
+class TaskController {
+    @Autowired
+    private TaskService taskService;
+
+    @GetMapping
+    public List<Task> getAllTasks(@RequestParam Optional<TaskStatus> status) {
+        return taskService.getAllTasks(status);
+    }
+
+    @GetMapping("/{id}")
+    public Optional<Task> getTaskById(@PathVariable Long id) {
+        return taskService.getTaskById(id);
+    }
+
+    @PostMapping
+    public Task createTask(@RequestBody Task task) {
+        return taskService.createTask(task);
+    }
+
+    @PutMapping("/{id}")
+    public Task updateTask(@PathVariable Long id, @RequestBody Task task) {
+        return taskService.updateTask(id, task);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteTask(@PathVariable Long id) {
+        taskService.deleteTask(id);
+    }
+}
+
